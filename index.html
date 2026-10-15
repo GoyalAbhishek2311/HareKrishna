@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Meesho Label Sorter Pro</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- PDF.js for Extracting Label Text -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+
+    <!-- pdf-lib for Vector-Preserving PDF Splitting & Reordering -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <!-- JSZip for One-Click Bulk ZIP Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Google Fonts: Plus Jakarta Sans, Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        app: {
+                            bg: '#0f1117',
+                            card: '#161922',
+                            elevated: '#1e2230',
+                            border: '#262b3d',
+                            borderHover: '#363d54',
+                            blue: '#3b82f6',
+                            blueHover: '#2563eb',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f1117;
+            color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* Custom subtle scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f1117; }
+        ::-webkit-scrollbar-thumb { background: #262b3d; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+        .dragging-row { opacity: 0.45; border: 1px dashed #3b82f6 !important; }
+        .drag-over-row { border-top: 2px solid #3b82f6 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
+
+        @keyframes toastSlideIn {
+            from { transform: translateY(16px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-animate { animation: toastSlideIn 0.22s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-app-blue selection:text-white">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="sticky top-0 z-30 bg-app-card/95 backdrop-blur border-b border-app-border px-4 lg:px-6 py-3">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Clickable Top-Left Brand Container (Refreshes Application) -->
+            <div onclick="window.location.reload()" title="Click to refresh application" class="flex items-center gap-3 cursor-pointer group select-none py-0.5">
+                <div class="w-9 h-9 rounded-lg bg-app-blue group-hover:bg-app-blueHover transition-colors flex items-center justify-center text-white shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-display font-bold text-base sm:text-lg text-white group-hover:text-blue-400 transition-colors tracking-tight">Meesho Label Sorter</span>
+                        <span class="text-[11px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">PRO</span>
+                        <span id="offline-ready-badge" class="hidden text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Offline Ready</span>
+                    </div>
+                    <p class="text-xs text-slate-400 hidden sm:block">Multi-SKU Product Grouping &amp; Courier Sorter</p>
+                </div>
+            </div>
+
+            <!-- Right Actions: Quick Stats & Sync/Backup SKUs Button -->
+            <div class="flex items-center gap-2.5">
+                <div id="header-stats-pill" class="hidden sm:flex items-center gap-2 bg-app-bg border border-app-border px-3 py-1.5 rounded-lg text-xs text-slate-300">
+                    <span>PDFs: <strong id="stat-files-count" class="font-mono text-white">0</strong></span>
+                    <span class="text-slate-600">•</span>
+                    <span>Labels: <strong id="stat-labels-count" class="font-mono text-emerald-400">0</strong></span>
+                </div>
+
+                <button onclick="openSyncModal()" class="min-h-[40px] px-3.5 py-2 rounded-lg bg-app-elevated hover:bg-app-border text-slate-100 border border-app-border hover:border-app-borderHover text-xs sm:text-sm font-medium transition flex items-center gap-2 shadow-sm">
+                    <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                    </svg>
+                    <span>Sync / Backup SKUs</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- STICKY MOBILE NAVIGATION TABS (Visible on Mobile / Tablet < lg) -->
+    <nav class="lg:hidden sticky top-[61px] z-20 bg-app-card border-b border-app-border grid grid-cols-3 text-xs font-semibold">
+        <button id="mob-tab-upload" onclick="switchMobileTab('upload')" class="min-h-[44px] py-2.5 px-2 text-center border-b-2 border-app-blue text-white flex items-center justify-center gap-1.5 transition">
+            <span>1. PDFs &amp; Output</span>
+            <span id="mob-badge-pdfs" class="font-mono text-[10px] px-1.5 py-0.2 bg-blue-500/20 text-blue-300 rounded-full">0</span>
+        </button>
+        <button id="mob-tab-unmatched" onclick="switchMobileTab('unmatched')" class="min-h-[44px] py-2.5 px-2 text-center border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 transition">
+            <span>2. Unmatched</span>
+            <span id="mob-badge-unmatched" class="font-mono text-[10px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 rounded-full">0</span>
+        </button>
+        <button id="mob-tab-skus" onclick="switchMobileTab('skus')" class="min-h-[44px] py-2.5 px-2 text-center border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 transition">
+            <span>3. SKU Groups</span>
+            <span id="mob-badge-groups" class="font-mono text-[10px] px-1.5 py-0.2 bg-slate-700 text-slate-300 rounded-full">0</span>
+        </button>
+    </nav>
+
+    <!-- MAIN CONTENT GRID -->
+    <div class="flex-1 max-w-[1600px] w-full mx-auto px-3 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- LEFT COLUMN: PRODUCT GROUPS & SAVED SKU CHIPS MANAGER (4 Columns on Desktop) -->
+        <aside id="section-skus" class="hidden lg:block lg:col-span-4 xl:col-span-4 space-y-4">
+            <div class="bg-app-card border border-app-border rounded-xl p-4 sm:p-5 shadow-sm">
+                <!-- Header -->
+                <div class="flex items-center justify-between gap-2 pb-3.5 mb-4 border-b border-app-border">
+                    <div>
+                        <h2 class="font-display font-bold text-base text-white flex items-center gap-2">
+                            <span>Product Groups &amp; SKUs</span>
+                            <span id="groups-count-badge" class="text-xs font-mono px-2 py-0.5 rounded-full bg-app-elevated text-blue-400 border border-app-border">2</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Enter SKUs, click <strong class="text-slate-200">Save SKUs</strong>, or remove any SKU in 1 click.</p>
+                    </div>
+                    <button onclick="addNewProductGroup()" class="min-h-[38px] px-3 py-1.5 rounded-lg bg-app-blue hover:bg-app-blueHover text-white text-xs font-semibold transition flex items-center gap-1.5 shrink-0 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"></path></svg>
+                        <span>Add Group</span>
+                    </button>
+                </div>
+
+                <!-- Product Group Cards Container -->
+                <div id="product-groups-list" class="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT WORKSPACE: UPLOAD QUEUE, SORTED PDF DOWNLOADS & UNMATCHED SKU REARRANGER (8 Columns on Desktop) -->
+        <main id="section-main-workspace" class="lg:col-span-8 xl:col-span-8 space-y-6">
+
+            <!-- SUB-SECTION A: UPLOAD & SORTED OUTPUT DASHBOARD -->
+            <div id="sub-section-upload" class="space-y-6">
+                <!-- Cumulative Multi-PDF Upload Card -->
+                <div class="bg-app-card border border-app-border rounded-xl p-4 sm:p-6 shadow-sm">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-400 font-mono text-xs font-bold flex items-center justify-center">1</span>
+                                <h2 class="font-display font-bold text-base sm:text-lg text-white">Upload Daily Meesho Label PDFs</h2>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Upload one or multiple PDF files. You can add more PDFs anytime or remove individual files.</p>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <label class="min-h-[40px] px-4 py-2 rounded-lg bg-app-blue hover:bg-app-blueHover text-white text-xs sm:text-sm font-semibold cursor-pointer transition flex items-center justify-center gap-2 shadow-sm shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                <span>+ Add PDF File(s)</span>
+                                <input type="file" id="pdf-file-input" accept="application/pdf" multiple class="hidden" onchange="handleFileInputChange(event)">
+                            </label>
+                            <button id="clear-all-pdfs-btn" onclick="clearAllUploadedPdfs()" class="hidden min-h-[40px] px-3 py-2 rounded-lg bg-app-elevated hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-app-border hover:border-rose-500/40 text-xs font-medium transition">
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Drag & Drop Zone -->
+                    <div id="pdf-dropzone" onclick="document.getElementById('pdf-file-input').click()" class="border-2 border-dashed border-app-border hover:border-app-blue bg-app-bg/60 hover:bg-app-elevated/40 rounded-xl p-6 sm:p-8 text-center cursor-pointer transition group">
+                        <div class="w-11 h-11 rounded-full bg-app-elevated group-hover:bg-blue-500/20 border border-app-border group-hover:border-blue-500/40 mx-auto flex items-center justify-center text-slate-300 group-hover:text-blue-400 transition mb-3">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-200">Click to select Meesho Label PDF(s) or drag &amp; drop here</p>
+                        <p class="text-xs text-slate-400 mt-1">100% private browser processing • Preserves 100% original barcode sharpness</p>
+                    </div>
+
+                    <!-- Progress Bar (During Parsing) -->
+                    <div id="pdf-progress-box" class="hidden mt-4 bg-app-bg border border-app-border rounded-lg p-3.5">
+                        <div class="flex items-center justify-between text-xs mb-2">
+                            <span id="pdf-progress-status" class="text-blue-400 font-medium flex items-center gap-2">
+                                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Scanning shipping labels...
+                            </span>
+                            <span id="pdf-progress-pct" class="font-mono font-bold text-white">0%</span>
+                        </div>
+                        <div class="w-full h-2 bg-app-card rounded-full overflow-hidden">
+                            <div id="pdf-progress-bar" class="h-full bg-app-blue transition-all duration-200 w-0"></div>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded PDFs Queue List -->
+                    <div id="uploaded-files-wrapper" class="hidden mt-4 pt-4 border-t border-app-border">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Uploaded Label PDFs Queue</span>
+                            <span id="queue-summary-text" class="text-xs font-mono text-slate-400"></span>
+                        </div>
+                        <div id="uploaded-files-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <!-- Individual file items injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Sorted PDF Output & Download Dashboard -->
+                <div id="output-dashboard-card" class="hidden bg-app-card border border-app-border rounded-xl p-4 sm:p-6 shadow-sm">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b border-app-border">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold flex items-center justify-center">2</span>
+                                <h2 class="font-display font-bold text-base sm:text-lg text-white">Download Sorted Label PDFs</h2>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Product Groups are sorted by <strong class="text-slate-200">Delivery Partner (A→Z)</strong>. Unmatched SKUs follow your custom SKU sequence below.</p>
+                        </div>
+
+                        <button onclick="downloadAllAsZip()" id="download-zip-btn" class="min-h-[42px] px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            <span>Download All PDFs (.ZIP)</span>
+                        </button>
+                    </div>
+
+                    <div id="output-cards-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Output cards injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-SECTION B: FULL-WIDTH "REARRANGE UNMATCHED SKUs" WORKSPACE -->
+            <div id="sub-section-unmatched" class="bg-app-card border border-app-border rounded-xl p-4 sm:p-6 shadow-sm">
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-4 mb-4 border-b border-app-border">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono text-xs font-bold flex items-center justify-center">3</span>
+                            <h2 class="font-display font-bold text-base sm:text-lg text-white">Rearrange Unmatched / Other SKUs</h2>
+                            <span id="unmatched-unique-badge" class="text-xs font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">0 SKUs</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Pages in the <strong class="text-amber-300">Unmatched PDF</strong> follow your exact SKU order below, and labels inside each SKU are automatically sorted by <strong class="text-slate-200">Delivery Partner (A→Z)</strong>.
+                        </p>
+                    </div>
+
+                    <!-- Toolbar: Layout Mode, Quick Sort & Fullscreen Toggle -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Quick Sort Buttons -->
+                        <div class="flex items-center bg-app-bg border border-app-border rounded-lg p-0.5 text-xs">
+                            <button onclick="quickSortUnmatched('az')" class="min-h-[34px] px-2.5 py-1 rounded hover:bg-app-elevated text-slate-300 hover:text-white transition" title="Sort Unmatched SKUs A to Z">SKU A→Z</button>
+                            <button onclick="quickSortUnmatched('count')" class="min-h-[34px] px-2.5 py-1 rounded hover:bg-app-elevated text-slate-300 hover:text-white transition" title="Sort by Most Labels First">Most Labels</button>
+                        </div>
+
+                        <!-- Multi-Column View Switcher so 30-50+ SKUs fit on one screen -->
+                        <div class="hidden sm:flex items-center bg-app-bg border border-app-border rounded-lg p-0.5 text-xs">
+                            <button id="view-btn-grid3" onclick="setUnmatchedViewMode('grid3')" class="min-h-[34px] px-2.5 py-1 rounded bg-app-elevated text-white font-medium transition">3-Col</button>
+                            <button id="view-btn-grid2" onclick="setUnmatchedViewMode('grid2')" class="min-h-[34px] px-2.5 py-1 rounded text-slate-400 hover:text-white transition">2-Col</button>
+                            <button id="view-btn-table" onclick="setUnmatchedViewMode('table')" class="min-h-[34px] px-2.5 py-1 rounded text-slate-400 hover:text-white transition">Compact Table</button>
+                        </div>
+
+                        <!-- Expand Fullscreen Button -->
+                        <button onclick="toggleUnmatchedFullscreen()" id="fullscreen-unmatched-btn" class="min-h-[36px] px-3 py-1.5 rounded-lg bg-app-elevated hover:bg-app-border border border-app-border text-xs font-medium text-slate-200 flex items-center gap-1.5 transition" title="Expand Unmatched SKUs to Fullscreen">
+                            <span>⛶</span>
+                            <span id="fullscreen-btn-label">Fullscreen</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search / Filter Bar inside Unmatched SKUs -->
+                <div id="unmatched-filter-bar" class="hidden mb-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" id="unmatched-search-input" oninput="renderUnmatchedWorkspace()" placeholder="Search unmatched SKU ID..." class="w-full bg-app-bg border border-app-border focus:border-app-blue rounded-lg pl-3 pr-8 py-2 text-xs text-white placeholder-slate-500 outline-none font-mono">
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                        <span>Tip: Type a <strong class="text-slate-200">#Rank</strong> to jump directly, click <strong class="text-amber-400">★</strong> to pin to top, or assign any SKU to a group.</span>
+                    </div>
+                </div>
+
+                <!-- Unmatched SKUs Container -->
+                <div id="unmatched-workspace-container">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- UNIVERSAL BACKWARD-COMPATIBLE "SYNC / BACKUP SKUs" MODAL -->
+    <div id="sync-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-app-card border border-app-border rounded-2xl w-full max-w-xl p-5 sm:p-6 shadow-2xl my-8">
+            <div class="flex items-start justify-between gap-3 pb-4 mb-4 border-b border-app-border">
+                <div>
+                    <h3 class="font-display font-bold text-lg text-white">Sync / Backup SKU Configuration</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Works across Laptop &amp; Mobile. Backward-compatible with all previous JSON &amp; Config formats.</p>
+                </div>
+                <button onclick="closeSyncModal()" class="w-8 h-8 rounded-lg bg-app-elevated hover:bg-app-border text-slate-400 hover:text-white flex items-center justify-center transition">✕</button>
+            </div>
+
+            <div class="space-y-5">
+                <!-- Option A: Copy / Paste Plain JSON Config Code (Best for WhatsApp / Notes / Mobile) -->
+                <div class="bg-app-bg border border-app-border rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-blue-400">Option 1: Copy / Paste SKU Config Code (Laptop ↔ Phone)</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3">Copy your SKU configuration below, send it via WhatsApp/Notes, or paste any previous SKU config code here to load it:</p>
+
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button onclick="copySkuConfigToClipboard()" class="min-h-[40px] flex-1 bg-app-elevated hover:bg-app-border border border-app-border text-white text-xs sm:text-sm font-medium py-2 px-3 rounded-lg transition flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            <span>Copy Config Code</span>
+                        </button>
+                        <button onclick="shareSkuConfigMobile()" class="min-h-[40px] flex-1 bg-app-elevated hover:bg-app-border border border-app-border text-white text-xs sm:text-sm font-medium py-2 px-3 rounded-lg transition flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                            <span>Share to WhatsApp / Phone</span>
+                        </button>
+                    </div>
+
+                    <textarea id="sync-config-textarea" rows="5" class="w-full bg-app-card border border-app-border focus:border-app-blue rounded-lg p-3 text-xs font-mono text-slate-200 placeholder-slate-500 outline-none resize-y" placeholder="Paste your SKU Config JSON or code here..."></textarea>
+
+                    <div class="flex items-center justify-between gap-2 mt-2.5">
+                        <button onclick="document.getElementById('sync-config-textarea').value = '';" class="min-h-[38px] px-3 py-1.5 rounded-lg bg-app-elevated hover:bg-app-border text-xs text-slate-400 hover:text-white transition">
+                            Clear Box
+                        </button>
+                        <button onclick="importFromModalTextarea()" class="min-h-[40px] flex-1 bg-app-blue hover:bg-app-blueHover text-white font-semibold text-xs sm:text-sm py-2 px-4 rounded-lg transition shadow-sm">
+                            Load Pasted SKU Configuration
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Option B: Download / Upload .JSON File -->
+                <div class="bg-app-bg border border-app-border rounded-xl p-4">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400 block mb-2">Option 2: Backup File (.JSON)</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button onclick="downloadSkuConfigFile()" class="min-h-[42px] bg-app-elevated hover:bg-app-border border border-app-border text-white text-xs sm:text-sm font-medium py-2.5 px-3 rounded-lg transition flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            <span>Download Backup (.json)</span>
+                        </button>
+                        <label class="min-h-[42px] bg-app-elevated hover:bg-app-border border border-app-border text-white text-xs sm:text-sm font-medium py-2.5 px-3 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            <span>Upload Backup (.json)</span>
+                            <input type="file" accept=".json,application/json,text/plain" class="hidden" onchange="uploadSkuConfigFile(event)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATIONS CONTAINER -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- APPLICATION JAVASCRIPT -->
+    <script>
+        // =========================================================================
+        // 1. STATE & LOCALSTORAGE PERSISTENCE
+        // =========================================================================
+        const STORAGE_KEYS = {
+            GROUPS: 'meesho_sorter_product_groups_v1',
+            LEGACY_GROUPS: 'productGroups',
+            UNMATCHED_ORDER: 'meesho_sorter_unmatched_order_v1',
+            PINNED_SKUS: 'meesho_sorter_pinned_unmatched_v1'
+        };
+
+        const DEFAULT_PRODUCT_GROUPS = [
+            { id: 'grp_abc', name: 'Product-ABC', skus: ['ABC-RED-01', 'ABC-BLUE-02'] },
+            { id: 'grp_def', name: 'Product-DEF', skus: ['DEF-COMBO-01', 'DEF-PACK-02'] }
+        ];
+
+        const KNOWN_COURIERS = [
+            { name: 'Valmo', keywords: ['valmo', 'fashnear'] },
+            { name: 'Shadowfax', keywords: ['shadowfax', 'sfx'] },
+            { name: 'Delhivery', keywords: ['delhivery'] },
+            { name: 'Ecom Express', keywords: ['ecom express', 'ecomexpress', 'ecom exp'] },
+            { name: 'Xpressbees', keywords: ['xpressbees', 'xpress bees'] },
+            { name: 'DTDC', keywords: ['dtdc'] },
+            { name: 'BlueDart', keywords: ['bluedart', 'blue dart'] },
+            { name: 'Ekart', keywords: ['ekart'] }
+        ];
+
+        let productGroups = [];
+        let customUnmatchedOrder = [];
+        let pinnedUnmatchedSkus = [];
+        let bulkEditOpenMap = {}; // { [groupId]: boolean }
+
+        // Uploaded PDFs & Extracted Label Pages
+        let uploadedFilesQueue = []; // [{ id, name, pageCount, arrayBuffer }]
+        let allExtractedPages = [];  // [{ fileId, fileName, pageIndex, rawText, sku, courier }]
+
+        // Computed Buckets
+        let groupBuckets = {};       // { [groupId]: [pageObj, ...] }
+        let unmatchedBucket = [];    // [pageObj, ...]
+        let uniqueUnmatchedStats = []; // [{ key, displaySku, count, couriers: {}, startPage, endPage, pinned }]
+
+        // UI View State
+        let unmatchedViewMode = 'grid3'; // 'grid3' | 'grid2' | 'table'
+        let isUnmatchedFullscreen = false;
+        let draggedUnmatchedIndex = null;
+
+        // =========================================================================
+        // 2. UNIVERSAL BACKWARD-COMPATIBLE SKU CONFIG PARSER & NORMALIZER
+        // =========================================================================
+        function normalizeSkuList(rawSkus) {
+            if (!rawSkus) return [];
+            let list = [];
+            if (Array.isArray(rawSkus)) {
+                rawSkus.forEach(item => {
+                    if (typeof item === 'string' || typeof item === 'number') {
+                        String(item).split(/[\n,]+/).forEach(part => {
+                            const cleaned = part.trim();
+                            if (cleaned) list.push(cleaned);
+                        });
+                    } else if (item && typeof item === 'object' && item.sku) {
+                        const cleaned = String(item.sku).trim();
+                        if (cleaned) list.push(cleaned);
+                    }
+                });
+            } else if (typeof rawSkus === 'string' || typeof rawSkus === 'number') {
+                String(rawSkus).split(/[\n,]+/).forEach(part => {
+                    const cleaned = part.trim();
+                    if (cleaned) list.push(cleaned);
+                });
+            }
+            // Deduplicate case-insensitively while preserving first-seen casing
+            const seen = new Set();
+            const unique = [];
+            for (const s of list) {
+                const lower = s.toLowerCase();
+                if (!seen.has(lower)) {
+                    seen.add(lower);
+                    unique.push(s);
+                }
+            }
+            return unique;
+        }
+
+        function normalizeGroupArray(rawArray) {
+            if (!Array.isArray(rawArray)) return null;
+            const normalized = [];
+            rawArray.forEach((item, idx) => {
+                if (!item || typeof item !== 'object') return;
+                const name = String(item.name || item.groupName || item.title || item.product || `Product-${idx + 1}`).trim();
+                const rawSkus = item.skus !== undefined ? item.skus :
+                                item.skuList !== undefined ? item.skuList :
+                                item.sku !== undefined ? item.sku :
+                                item.items !== undefined ? item.items :
+                                item.codes !== undefined ? item.codes : [];
+                const id = String(item.id || `grp_${Date.now()}_${idx}`);
+                normalized.push({
+                    id,
+                    name: name || `Product-${idx + 1}`,
+                    skus: normalizeSkuList(rawSkus)
+                });
+            });
+            return normalized.length > 0 ? normalized : null;
+        }
+
+        /**
+         * Universal parser supporting:
+         * - Format 1: Plain JSON Array: [{"id":"...","name":"Product-ABC","skus":["..."]}]
+         * - Format 2: Wrapped JSON Object: {"version":2,"groups":[...],"productGroups":[...],"data":[...]}
+         * - Format 3: Key-Value Map Object: {"Product-ABC": ["sku1", "sku2"], "Product-DEF": "sku3, sku4"}
+         * - Format 4: Legacy string SKUs inside groups
+         * - Format 5: Base64 or URL-safe Base64 encoded JSON or WhatsApp code blocks
+         */
+        function parseUniversalSkuConfig(rawInputString) {
+            if (!rawInputString || typeof rawInputString !== 'string') {
+                throw new Error('Empty configuration input.');
+            }
+
+            // Step 1: Strip markdown code fences (e.g. ```json ... ```), zero-width chars, and trim
+            let cleaned = rawInputString
+                .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                .replace(/```(?:json|javascript|txt)?/gi, '')
+                .replace(/```/g, '')
+                .trim();
+
+            // Replace smart quotes with standard quotes if JSON doesn't parse directly
+            const tryJsonParse = (str) => {
+                try {
+                    return JSON.parse(str);
+                } catch (e1) {
+                    const normalizedQuotes = str
+                        .replace(/[\u201C\u201D]/g, '"')
+                        .replace(/[\u2018\u2019]/g, "'");
+                    return JSON.parse(normalizedQuotes);
+                }
+            };
+
+            let parsedData = null;
+
+            // Step 2: Try direct JSON parse first
+            try {
+                parsedData = tryJsonParse(cleaned);
+            } catch (directErr) {
+                // Step 3: If wrapped in extra WhatsApp text, try extracting the JSON [...] or {...} substring
+                const firstBracket = cleaned.indexOf('[');
+                const lastBracket = cleaned.lastIndexOf(']');
+                const firstBrace = cleaned.indexOf('{');
+                const lastBrace = cleaned.lastIndexOf('}');
+
+                let extractedCandidate = null;
+                if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
+                    extractedCandidate = cleaned.slice(firstBrace, lastBrace + 1);
+                } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+                    extractedCandidate = cleaned.slice(firstBracket, lastBracket + 1);
+                }
+
+                if (extractedCandidate) {
+                    try {
+                        parsedData = tryJsonParse(extractedCandidate);
+                    } catch (_) {}
+                }
+
+                // Step 4: Try Base64 decoding (standard & URL-safe Base64)
+                if (!parsedData) {
+                    try {
+                        let b64 = cleaned.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+                        while (b64.length % 4 !== 0) b64 += '=';
+                        const binaryStr = atob(b64);
+                        let utf8Str = binaryStr;
+                        try {
+                            utf8Str = decodeURIComponent(Array.prototype.map.call(binaryStr, c =>
+                                '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+                            ).join(''));
+                        } catch (_) {}
+                        parsedData = tryJsonParse(utf8Str);
+                    } catch (b64Err) {
+                        throw new Error('Could not parse SKU Config. Please check the pasted code or JSON file.');
+                    }
+                }
+            }
+
+            if (!parsedData) {
+                throw new Error('Invalid SKU Configuration format.');
+            }
+
+            let extractedGroups = null;
+            let extractedOrder = null;
+            let extractedPinned = null;
+
+            // Case A: Plain Array of Groups
+            if (Array.isArray(parsedData)) {
+                extractedGroups = normalizeGroupArray(parsedData);
+                if (!extractedGroups && parsedData.length === 0) {
+                    extractedGroups = [];
+                }
+            }
+            // Case B: Object wrapper
+            else if (typeof parsedData === 'object') {
+                const candidateArray =
+                    parsedData.groups ||
+                    parsedData.productGroups ||
+                    parsedData.products ||
+                    parsedData.data ||
+                    parsedData.items ||
+                    parsedData.config;
+
+                if (Array.isArray(candidateArray)) {
+                    extractedGroups = normalizeGroupArray(candidateArray) || [];
+                } else if (parsedData.name && (parsedData.skus !== undefined || parsedData.skuList !== undefined)) {
+                    // Single group object
+                    extractedGroups = normalizeGroupArray([parsedData]);
+                } else {
+                    // Key-value map like {"Product-ABC": ["sku1", "sku2"], "Product-DEF": "sku3, sku4"}
+                    const reservedKeys = new Set(['version', 'order', 'unmatchedOrder', 'customUnmatchedOrder', 'pinned', 'pinnedUnmatched', 'timestamp', 'exportedAt']);
+                    const kvGroups = [];
+                    Object.entries(parsedData).forEach(([k, v], idx) => {
+                        if (reservedKeys.has(k)) return;
+                        if (Array.isArray(v) || typeof v === 'string') {
+                            kvGroups.push({
+                                id: `grp_${Date.now()}_${idx}`,
+                                name: k,
+                                skus: normalizeSkuList(v)
+                            });
+                        }
+                    });
+                    if (kvGroups.length > 0) {
+                        extractedGroups = kvGroups;
+                    }
+                }
+
+                // Extract optional unmatched order / pinned SKUs if present
+                const orderCandidate = parsedData.unmatchedOrder || parsedData.order || parsedData.customUnmatchedOrder;
+                if (Array.isArray(orderCandidate)) {
+                    extractedOrder = orderCandidate.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+                }
+                const pinnedCandidate = parsedData.pinnedUnmatched || parsedData.pinned;
+                if (Array.isArray(pinnedCandidate)) {
+                    extractedPinned = pinnedCandidate.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+                }
+            }
+
+            if (!extractedGroups) {
+                throw new Error('No valid Product Groups found in configuration.');
+            }
+
+            return {
+                groups: extractedGroups,
+                unmatchedOrder: extractedOrder,
+                pinnedUnmatched: extractedPinned
+            };
+        }
+
+        function loadInitialState() {
+            // Try current key, then fallback to legacy key so existing user data is never lost
+            const rawPrimary = localStorage.getItem(STORAGE_KEYS.GROUPS);
+            const rawLegacy = localStorage.getItem(STORAGE_KEYS.LEGACY_GROUPS);
+            const rawSource = rawPrimary || rawLegacy;
+
+            if (rawSource) {
+                try {
+                    const parsed = parseUniversalSkuConfig(rawSource);
+                    if (parsed.groups && parsed.groups.length > 0) {
+                        productGroups = parsed.groups;
+                    } else {
+                        productGroups = JSON.parse(JSON.stringify(DEFAULT_PRODUCT_GROUPS));
+                    }
+                } catch (e) {
+                    productGroups = JSON.parse(JSON.stringify(DEFAULT_PRODUCT_GROUPS));
+                }
+            } else {
+                productGroups = JSON.parse(JSON.stringify(DEFAULT_PRODUCT_GROUPS));
+            }
+
+            try {
+                const savedOrder = JSON.parse(localStorage.getItem(STORAGE_KEYS.UNMATCHED_ORDER) || localStorage.getItem('customUnmatchedOrder') || '[]');
+                if (Array.isArray(savedOrder)) customUnmatchedOrder = savedOrder.map(s => String(s).toUpperCase());
+            } catch (_) { customUnmatchedOrder = []; }
+
+            try {
+                const savedPinned = JSON.parse(localStorage.getItem(STORAGE_KEYS.PINNED_SKUS) || '[]');
+                if (Array.isArray(savedPinned)) pinnedUnmatchedSkus = savedPinned.map(s => String(s).toUpperCase());
+            } catch (_) { pinnedUnmatchedSkus = []; }
+
+            persistProductGroups();
+        }
+
+        function persistProductGroups() {
+            const jsonStr = JSON.stringify(productGroups);
+            localStorage.setItem(STORAGE_KEYS.GROUPS, jsonStr);
+            localStorage.setItem(STORAGE_KEYS.LEGACY_GROUPS, jsonStr); // Keep both keys synced
+            localStorage.setItem(STORAGE_KEYS.UNMATCHED_ORDER, JSON.stringify(customUnmatchedOrder));
+            localStorage.setItem(STORAGE_KEYS.PINNED_SKUS, JSON.stringify(pinnedUnmatchedSkus));
+            updateHeaderBadges();
+        }
+
+        // =========================================================================
+        // 3. PRODUCT GROUPS & SKU CHIPS UI (SAVE BUTTON + 1-CLICK REMOVE ✕)
+        // =========================================================================
+        function renderProductGroups() {
+            const container = document.getElementById('product-groups-list');
+            document.getElementById('groups-count-badge').textContent = productGroups.length;
+            document.getElementById('mob-badge-groups').textContent = productGroups.length;
+
+            if (productGroups.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 px-4 bg-app-bg border border-dashed border-app-border rounded-xl">
+                        <p class="text-sm text-slate-300 font-medium">No Product Groups created yet</p>
+                        <p class="text-xs text-slate-500 mt-1 mb-3">Create a group (like Product-ABC) to map multiple SKUs together.</p>
+                        <button onclick="addNewProductGroup()" class="px-3.5 py-2 rounded-lg bg-app-blue text-white text-xs font-semibold hover:bg-app-blueHover transition">+ Create First Product Group</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = productGroups.map((group, gIdx) => {
+                const isBulkOpen = !!bulkEditOpenMap[group.id];
+                const matchedCount = groupBuckets[group.id] ? groupBuckets[group.id].length : 0;
+
+                const skuChipsHtml = group.skus.length > 0
+                    ? group.skus.map((sku, sIdx) => `
+                        <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-md bg-app-elevated hover:bg-slate-800 border border-app-border text-xs font-mono text-slate-100 transition group/chip">
+                            <span class="truncate max-w-[180px]" title="${escapeHtml(sku)}">${escapeHtml(sku)}</span>
+                            <button type="button" onclick="removeSingleSkuFromGroup('${group.id}', ${sIdx})" title="Remove ${escapeHtml(sku)}" class="w-5 h-5 rounded hover:bg-rose-500/25 text-slate-400 hover:text-rose-400 flex items-center justify-center transition font-sans font-bold text-xs leading-none">
+                                ✕
+                            </button>
+                        </span>
+                    `).join('')
+                    : `<p class="text-xs text-slate-500 italic py-1">No SKUs saved in this group yet. Enter SKU IDs below and click Save SKUs.</p>`;
+
+                return `
+                    <div class="bg-app-bg border border-app-border rounded-xl p-3.5 sm:p-4 transition hover:border-app-borderHover">
+                        <!-- Group Name Header & Actions -->
+                        <div class="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-app-border">
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                <span class="w-2.5 h-2.5 rounded-full bg-app-blue shrink-0"></span>
+                                <input type="text" value="${escapeHtml(group.name)}"
+                                    onchange="renameProductGroup('${group.id}', this.value)"
+                                    class="bg-transparent font-display font-bold text-sm text-white focus:bg-app-card focus:px-2 py-0.5 rounded border border-transparent focus:border-app-blue outline-none w-full truncate"
+                                    title="Click to rename Product Group" />
+                            </div>
+
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                ${allExtractedPages.length > 0 ? `
+                                    <span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="Matched labels in current batch">
+                                        ${matchedCount} lbls
+                                    </span>
+                                ` : ''}
+                                <button type="button" onclick="toggleBulkEditGroup('${group.id}')" class="px-2 py-1 rounded bg-app-card hover:bg-app-elevated text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-app-border transition" title="Toggle Bulk Text Edit">
+                                    ${isBulkOpen ? 'Chips View' : 'Bulk Edit'}
+                                </button>
+                                <button type="button" onclick="deleteProductGroup('${group.id}')" class="w-7 h-7 rounded bg-app-card hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-app-border flex items-center justify-center transition text-xs" title="Delete Product Group">
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Add New SKUs Input + Explicit "Save SKUs" Button -->
+                        <div class="mb-3">
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1.5">
+                                Add SKU IDs for <span class="text-slate-200 font-semibold">${escapeHtml(group.name)}</span> (comma or line separated):
+                            </label>
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <textarea id="add-sku-input-${group.id}" rows="2"
+                                    onkeydown="handleSkuInputKeydown(event, '${group.id}')"
+                                    placeholder="e.g. abc-red-1, abc-blue-2"
+                                    class="flex-1 bg-app-card border border-app-border focus:border-app-blue rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 outline-none resize-y"></textarea>
+                                <button type="button" onclick="saveNewSkusToGroup('${group.id}')"
+                                    class="min-h-[40px] sm:w-auto px-4 py-2 rounded-lg bg-app-blue hover:bg-app-blueHover text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                                    <span>Save SKUs</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Default View: Interactive Saved SKU Chips with 1-Click Remove (✕) -->
+                        ${!isBulkOpen ? `
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                        Saved SKUs (${group.skus.length})
+                                    </span>
+                                    ${group.skus.length > 0 ? `
+                                        <span class="text-[10px] text-slate-500">Click ✕ on any SKU to remove</span>
+                                    ` : ''}
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto p-2 rounded-lg bg-app-card/70 border border-app-border">
+                                    ${skuChipsHtml}
+                                </div>
+                            </div>
+                        ` : `
+                            <!-- Optional Bulk Edit Raw Text Mode -->
+                            <div class="pt-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[11px] font-semibold text-blue-400">Bulk Edit All SKUs (comma or newline separated)</span>
+                                </div>
+                                <textarea id="bulk-sku-textarea-${group.id}" rows="4"
+                                    class="w-full bg-app-card border border-app-blue/60 rounded-lg p-2.5 text-xs font-mono text-slate-100 outline-none resize-y">${escapeHtml(group.skus.join(', '))}</textarea>
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="toggleBulkEditGroup('${group.id}')" class="px-3 py-1.5 rounded-lg bg-app-card text-xs text-slate-400 hover:text-white border border-app-border">Cancel</button>
+                                    <button type="button" onclick="saveBulkEditedSkus('${group.id}')" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">Save Bulk Changes</button>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function handleSkuInputKeydown(event, groupId) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                saveNewSkusToGroup(groupId);
+            }
+        }
+
+        function saveNewSkusToGroup(groupId) {
+            const inputEl = document.getElementById(`add-sku-input-${groupId}`);
+            if (!inputEl) return;
+            const rawVal = inputEl.value.trim();
+            if (!rawVal) {
+                showToast('Please enter at least one SKU ID before clicking Save SKUs.', 'amber');
+                inputEl.focus();
+                return;
+            }
+
+            const group = productGroups.find(g => g.id === groupId);
+            if (!group) return;
+
+            const incomingSkus = normalizeSkuList(rawVal);
+            if (incomingSkus.length === 0) return;
+
+            const existingLower = new Set(group.skus.map(s => s.toLowerCase()));
+            let addedCount = 0;
+
+            incomingSkus.forEach(sku => {
+                if (!existingLower.has(sku.toLowerCase())) {
+                    group.skus.push(sku);
+                    existingLower.add(sku.toLowerCase());
+                    addedCount++;
+                }
+            });
+
+            inputEl.value = '';
+            persistProductGroups();
+            recalculateBucketsAndRender();
+
+            if (addedCount > 0) {
+                showToast(`Saved ${addedCount} SKU(s) to ${group.name}!`, 'emerald');
+            } else {
+                showToast(`SKU(s) already saved in ${group.name}.`, 'blue');
+            }
+        }
+
+        function removeSingleSkuFromGroup(groupId, skuIndex) {
+            const group = productGroups.find(g => g.id === groupId);
+            if (!group || skuIndex < 0 || skuIndex >= group.skus.length) return;
+
+            const removedSku = group.skus.splice(skuIndex, 1)[0];
+            persistProductGroups();
+            recalculateBucketsAndRender();
+            showToast(`Removed SKU "${removedSku}" from ${group.name}`, 'blue');
+        }
+
+        function toggleBulkEditGroup(groupId) {
+            bulkEditOpenMap[groupId] = !bulkEditOpenMap[groupId];
+            renderProductGroups();
+        }
+
+        function saveBulkEditedSkus(groupId) {
+            const textarea = document.getElementById(`bulk-sku-textarea-${groupId}`);
+            const group = productGroups.find(g => g.id === groupId);
+            if (!textarea || !group) return;
+
+            group.skus = normalizeSkuList(textarea.value);
+            bulkEditOpenMap[groupId] = false;
+            persistProductGroups();
+            recalculateBucketsAndRender();
+            showToast(`Updated SKU list for ${group.name}!`, 'emerald');
+        }
+
+        function addNewProductGroup() {
+            const nextNum = productGroups.length + 1;
+            const letters = ['ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQR', 'STU', 'VWX'];
+            const suffix = letters[(nextNum - 1) % letters.length] || nextNum;
+            const newGroup = {
+                id: 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                name: `Product-${suffix}`,
+                skus: []
+            };
+            productGroups.push(newGroup);
+            persistProductGroups();
+            renderProductGroups();
+            showToast(`Added ${newGroup.name}`, 'emerald');
+        }
+
+        function renameProductGroup(groupId, newName) {
+            const group = productGroups.find(g => g.id === groupId);
+            if (!group) return;
+            const cleaned = newName.trim();
+            if (cleaned) {
+                group.name = cleaned;
+                persistProductGroups();
+                recalculateBucketsAndRender();
+                showToast(`Renamed group to ${cleaned}`, 'blue');
+            } else {
+                renderProductGroups();
+            }
+        }
+
+        function deleteProductGroup(groupId) {
+            const idx = productGroups.findIndex(g => g.id === groupId);
+            if (idx === -1) return;
+            const deletedName = productGroups[idx].name;
+            productGroups.splice(idx, 1);
+            persistProductGroups();
+            recalculateBucketsAndRender();
+            showToast(`Deleted group ${deletedName}`, 'amber');
+        }
+
+        // =========================================================================
+        // 4. CUMULATIVE MULTI-PDF UPLOAD & TEXT EXTRACTION ENGINE
+        // =========================================================================
+        function setupDropzoneListeners() {
+            const dz = document.getElementById('pdf-dropzone');
+            if (!dz) return;
+            dz.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dz.classList.add('border-app-blue', 'bg-app-elevated/60');
+            });
+            dz.addEventListener('dragleave', () => {
+                dz.classList.remove('border-app-blue', 'bg-app-elevated/60');
+            });
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('border-app-blue', 'bg-app-elevated/60');
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    processUploadedPdfFiles(Array.from(e.dataTransfer.files));
+                }
+            });
+        }
+
+        function handleFileInputChange(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length > 0) {
+                processUploadedPdfFiles(files);
+            }
+            // Always reset file input value so the user can add more files or re-select anytime
+            event.target.value = '';
+        }
+
+        async function processUploadedPdfFiles(files) {
+            const pdfFiles = files.filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+            if (pdfFiles.length === 0) {
+                showToast('Please select valid PDF (.pdf) files.', 'rose');
+                return;
+            }
+
+            const progressBox = document.getElementById('pdf-progress-box');
+            const progressBar = document.getElementById('pdf-progress-bar');
+            const progressPct = document.getElementById('pdf-progress-pct');
+            const progressStatus = document.getElementById('pdf-progress-status');
+
+            progressBox.classList.remove('hidden');
+            progressBar.style.width = '2%';
+            progressPct.textContent = '0%';
+
+            let totalAddedPages = 0;
+
+            for (let fIdx = 0; fIdx < pdfFiles.length; fIdx++) {
+                const file = pdfFiles[fIdx];
+                const fileId = 'pdf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    // Keep an independent Uint8Array copy for pdf-lib so PDF.js worker transfer doesn't detach it
+                    const safeBytesForPdfLib = new Uint8Array(arrayBuffer.slice(0));
+                    const bytesForPdfJs = new Uint8Array(arrayBuffer.slice(0));
+
+                    const pdfDoc = await pdfjsLib.getDocument({ data: bytesForPdfJs }).promise;
+                    const numPages = pdfDoc.numPages;
+
+                    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const textContent = await page.getTextContent();
+
+                        // Sort text items top-to-bottom, left-to-right for accurate table SKU parsing
+                        const items = textContent.items.map(item => ({
+                            str: (item.str || '').trim(),
+                            x: item.transform ? item.transform[4] : 0,
+                            y: item.transform ? item.transform[5] : 0
+                        })).filter(i => i.str.length > 0);
+
+                        const rawText = items.map(i => i.str).join(' ');
+
+                        allExtractedPages.push({
+                            fileId,
+                            fileName: file.name,
+                            pageIndex: pageNum - 1,
+                            rawText,
+                            items,
+                            sku: '',
+                            courier: ''
+                        });
+
+                        totalAddedPages++;
+                        const pct = Math.round(((fIdx + (pageNum / numPages)) / pdfFiles.length) * 100);
+                        progressBar.style.width = `${pct}%`;
+                        progressPct.textContent = `${pct}%`;
+                        progressStatus.textContent = `Reading ${file.name} (Page ${pageNum}/${numPages})...`;
+                    }
+
+                    uploadedFilesQueue.push({
+                        id: fileId,
+                        name: file.name,
+                        pageCount: numPages,
+                        pdfBytes: safeBytesForPdfLib
+                    });
+
+                } catch (err) {
+                    console.error('Error reading PDF:', file.name, err);
+                    showToast(`Failed to read ${file.name}. Ensure it is a valid unlocked PDF.`, 'rose');
+                }
+            }
+
+            setTimeout(() => {
+                progressBox.classList.add('hidden');
+                progressBar.style.width = '0%';
+            }, 350);
+
+            renderUploadedFilesQueue();
+            recalculateBucketsAndRender();
+
+            if (totalAddedPages > 0) {
+                showToast(`Processed ${totalAddedPages} shipping label(s) from ${pdfFiles.length} PDF(s)!`, 'emerald');
+            }
+        }
+
+        function removeSingleUploadedPdf(fileId) {
+            const target = uploadedFilesQueue.find(f => f.id === fileId);
+            if (!target) return;
+
+            uploadedFilesQueue = uploadedFilesQueue.filter(f => f.id !== fileId);
+            allExtractedPages = allExtractedPages.filter(p => p.fileId !== fileId);
+
+            renderUploadedFilesQueue();
+            recalculateBucketsAndRender();
+            showToast(`Removed "${target.name}" and updated sorted PDFs.`, 'blue');
+        }
+
+        function clearAllUploadedPdfs() {
+            uploadedFilesQueue = [];
+            allExtractedPages = [];
+            renderUploadedFilesQueue();
+            recalculateBucketsAndRender();
+            showToast('Cleared all uploaded PDFs.', 'amber');
+        }
+
+        function renderUploadedFilesQueue() {
+            const wrapper = document.getElementById('uploaded-files-wrapper');
+            const listEl = document.getElementById('uploaded-files-list');
+            const summaryEl = document.getElementById('queue-summary-text');
+            const clearBtn = document.getElementById('clear-all-pdfs-btn');
+
+            if (uploadedFilesQueue.length === 0) {
+                wrapper.classList.add('hidden');
+                clearBtn.classList.add('hidden');
+                listEl.innerHTML = '';
+                updateHeaderBadges();
+                return;
+            }
+
+            wrapper.classList.remove('hidden');
+            clearBtn.classList.remove('hidden');
+            summaryEl.textContent = `${uploadedFilesQueue.length} file(s) • ${allExtractedPages.length} total labels`;
+
+            listEl.innerHTML = uploadedFilesQueue.map((file, idx) => `
+                <div class="flex items-center justify-between gap-2 bg-app-bg border border-app-border px-3 py-2.5 rounded-lg">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-6 h-6 rounded bg-blue-500/15 border border-blue-500/30 text-blue-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">${idx + 1}</span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-medium text-white truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+                            <p class="text-[11px] font-mono text-emerald-400">${file.pageCount} label pages</p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeSingleUploadedPdf('${file.id}')" title="Remove this PDF file"
+                        class="min-h-[32px] px-2.5 py-1 rounded bg-app-card hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-app-border hover:border-rose-500/40 text-xs font-medium transition shrink-0">
+                        Remove ✕
+                    </button>
+                </div>
+            `).join('');
+
+            updateHeaderBadges();
+        }
+
+        // =========================================================================
+        // 5. MEESHO LABEL SKU & DELIVERY PARTNER DETECTION ENGINE
+        // =========================================================================
+        function detectCourierFromText(rawText) {
+            const lower = rawText.toLowerCase();
+            for (const c of KNOWN_COURIERS) {
+                for (const kw of c.keywords) {
+                    if (lower.includes(kw)) return c.name;
+                }
+            }
+            return 'Other Courier';
+        }
+
+        function detectSkuAndGroupForPage(page) {
+            const rawText = page.rawText || '';
+            const lowerText = rawText.toLowerCase();
+
+            // 1. First check against all user-defined Product Group SKUs (longest SKU match first to avoid partial prefix collisions)
+            const allConfiguredSkus = [];
+            productGroups.forEach(group => {
+                group.skus.forEach(sku => {
+                    const trimmed = sku.trim();
+                    if (trimmed) {
+                        allConfiguredSkus.push({
+                            groupId: group.id,
+                            sku: trimmed,
+                            lowerSku: trimmed.toLowerCase()
+                        });
+                    }
+                });
+            });
+
+            allConfiguredSkus.sort((a, b) => b.lowerSku.length - a.lowerSku.length);
+
+            for (const entry of allConfiguredSkus) {
+                // Escape regex special chars
+                const escaped = entry.lowerSku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const boundaryRegex = new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, 'i');
+                if (boundaryRegex.test(rawText) || lowerText.includes(entry.lowerSku)) {
+                    return { matchedGroupId: entry.groupId, detectedSku: entry.sku };
+                }
+            }
+
+            // 2. Fallback: Intelligent Meesho Label Table SKU Extraction
+            // Meesho labels typically have table headers: "SKU | Size | Qty | Color | Order No."
+            const meeshoTableRegex = /\bSKU\b\s+(?:Size\s+)?(?:Qty\s+)?(?:Color\s+)?(?:Order\s*No\.?\s*)?([A-Za-z0-9][A-Za-z0-9\-_./]{1,45})/i;
+            const blacklistWords = new Set(['size', 'qty', 'color', 'order', 'no', 'no.', 'description', 'hsn', 'tax', 'total', 'free', 'product', 'invoice', 'details', 'code']);
+
+            // Strategy A: Token sequence search after "SKU" token
+            const tokens = rawText.split(/\s+/);
+            for (let i = 0; i < tokens.length; i++) {
+                const cleanTok = tokens[i].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                if (cleanTok === 'sku') {
+                    for (let j = i + 1; j < Math.min(i + 10, tokens.length); j++) {
+                        const candidate = tokens[j].replace(/^[,:;]+|[,:;]+$/g, '');
+                        const lowerCand = candidate.toLowerCase();
+                        if (
+                            candidate.length >= 2 &&
+                            !blacklistWords.has(lowerCand) &&
+                            !/^\d{10,}$/.test(candidate) && // Ignore 12+ digit suborder numbers
+                            /[a-zA-Z0-9]/.test(candidate)
+                        ) {
+                            return { matchedGroupId: null, detectedSku: candidate };
+                        }
+                    }
+                }
+            }
+
+            // Strategy B: Regex fallback
+            const match = rawText.match(meeshoTableRegex);
+            if (match && match[1] && !blacklistWords.has(match[1].toLowerCase())) {
+                return { matchedGroupId: null, detectedSku: match[1].trim() };
+            }
+
+            return { matchedGroupId: null, detectedSku: 'UNKNOWN-SKU' };
+        }
+
+        // =========================================================================
+        // 6. BUCKETING & SORTING ENGINE
+        // =========================================================================
+        function recalculateBucketsAndRender() {
+            groupBuckets = {};
+            productGroups.forEach(g => { groupBuckets[g.id] = []; });
+            unmatchedBucket = [];
+
+            allExtractedPages.forEach(page => {
+                page.courier = detectCourierFromText(page.rawText);
+                const { matchedGroupId, detectedSku } = detectSkuAndGroupForPage(page);
+                page.sku = detectedSku;
+
+                if (matchedGroupId && groupBuckets[matchedGroupId]) {
+                    groupBuckets[matchedGroupId].push(page);
+                } else {
+                    unmatchedBucket.push(page);
+                }
+            });
+
+            // Sort Matched Product Groups: Primary = Delivery Partner (A-Z), Secondary = SKU ID (A-Z)
+            Object.keys(groupBuckets).forEach(groupId => {
+                groupBuckets[groupId].sort((a, b) => {
+                    const courierCmp = a.courier.localeCompare(b.courier);
+                    if (courierCmp !== 0) return courierCmp;
+                    return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
+                });
+            });
+
+            // Build & Sort Unmatched SKUs based on Custom User Sequence, then Delivery Partner (A-Z) inside each SKU
+            rebuildAndSortUnmatchedBucket();
+
+            // Refresh all UI sections
+            renderProductGroups();
+            renderOutputDashboard();
+            renderUnmatchedWorkspace();
+            updateHeaderBadges();
+        }
+
+        function rebuildAndSortUnmatchedBucket() {
+            const skuMap = new Map();
+
+            unmatchedBucket.forEach(page => {
+                const key = page.sku.trim().toUpperCase();
+                if (!skuMap.has(key)) {
+                    skuMap.set(key, {
+                        key,
+                        displaySku: page.sku.trim(),
+                        count: 0,
+                        couriers: {},
+                        pinned: pinnedUnmatchedSkus.includes(key)
+                    });
+                }
+                const entry = skuMap.get(key);
+                entry.count++;
+                entry.couriers[page.courier] = (entry.couriers[page.courier] || 0) + 1;
+            });
+
+            const currentUniqueKeys = Array.from(skuMap.keys());
+
+            // Append any newly discovered unmatched SKUs to customUnmatchedOrder
+            currentUniqueKeys.forEach(k => {
+                if (!customUnmatchedOrder.includes(k)) {
+                    customUnmatchedOrder.push(k);
+                }
+            });
+
+            // Sort active keys: Pinned SKUs first (in their relative custom order), then unpinned in customUnmatchedOrder
+            const activeKeysSorted = currentUniqueKeys.sort((keyA, keyB) => {
+                const pinA = pinnedUnmatchedSkus.includes(keyA) ? 0 : 1;
+                const pinB = pinnedUnmatchedSkus.includes(keyB) ? 0 : 1;
+                if (pinA !== pinB) return pinA - pinB;
+                return customUnmatchedOrder.indexOf(keyA) - customUnmatchedOrder.indexOf(keyB);
+            });
+
+            // Synchronize customUnmatchedOrder with active sorted keys first
+            const remainingHistoricalKeys = customUnmatchedOrder.filter(k => !skuMap.has(k));
+            customUnmatchedOrder = [...activeKeysSorted, ...remainingHistoricalKeys];
+            localStorage.setItem(STORAGE_KEYS.UNMATCHED_ORDER, JSON.stringify(customUnmatchedOrder));
+
+            // Sort the actual PDF pages in unmatchedBucket:
+            // 1st by custom SKU sequence (activeKeysSorted), 2nd by Delivery Partner (A-Z) inside each SKU
+            const rankLookup = new Map();
+            activeKeysSorted.forEach((k, idx) => rankLookup.set(k, idx));
+
+            unmatchedBucket.sort((a, b) => {
+                const rankA = rankLookup.get(a.sku.trim().toUpperCase()) ?? 999999;
+                const rankB = rankLookup.get(b.sku.trim().toUpperCase()) ?? 999999;
+                if (rankA !== rankB) return rankA - rankB;
+                return a.courier.localeCompare(b.courier);
+            });
+
+            // Calculate exact PDF page ranges for each unmatched SKU
+            let runningPage = 1;
+            uniqueUnmatchedStats = activeKeysSorted.map(key => {
+                const stat = skuMap.get(key);
+                stat.startPage = runningPage;
+                stat.endPage = runningPage + stat.count - 1;
+                stat.pinned = pinnedUnmatchedSkus.includes(key);
+                runningPage += stat.count;
+                return stat;
+            });
+        }
+
+        // =========================================================================
+        // 7. HIGH-DENSITY UNMATCHED SKU REARRANGER UI & CONTROLS
+        // =========================================================================
+        function setUnmatchedViewMode(mode) {
+            unmatchedViewMode = mode;
+            ['grid3', 'grid2', 'table'].forEach(m => {
+                const btn = document.getElementById(`view-btn-${m}`);
+                if (!btn) return;
+                if (m === mode) {
+                    btn.className = 'min-h-[34px] px-2.5 py-1 rounded bg-app-elevated text-white font-medium transition';
+                } else {
+                    btn.className = 'min-h-[34px] px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+                }
+            });
+            renderUnmatchedWorkspace();
+        }
+
+        function toggleUnmatchedFullscreen() {
+            const section = document.getElementById('sub-section-unmatched');
+            const label = document.getElementById('fullscreen-btn-label');
+            isUnmatchedFullscreen = !isUnmatchedFullscreen;
+
+            if (isUnmatchedFullscreen) {
+                section.classList.add('fixed', 'inset-2', ' sm:inset-4', 'z-50', 'overflow-y-auto', 'shadow-2xl');
+                label.textContent = 'Exit Fullscreen';
+            } else {
+                section.classList.remove('fixed', 'inset-2', 'sm:inset-4', 'z-50', 'overflow-y-auto', 'shadow-2xl');
+                label.textContent = 'Fullscreen';
+            }
+        }
+
+        function renderUnmatchedWorkspace() {
+            const container = document.getElementById('unmatched-workspace-container');
+            const badge = document.getElementById('unmatched-unique-badge');
+            const filterBar = document.getElementById('unmatched-filter-bar');
+            const searchInput = document.getElementById('unmatched-search-input');
+            const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+            badge.textContent = `${uniqueUnmatchedStats.length} SKUs (${unmatchedBucket.length} Labels)`;
+            document.getElementById('mob-badge-unmatched').textContent = uniqueUnmatchedStats.length;
+
+            if (allExtractedPages.length === 0) {
+                filterBar.classList.add('hidden');
+                container.innerHTML = `
+                    <div class="text-center py-10 px-4 bg-app-bg/60 border border-dashed border-app-border rounded-xl">
+                        <p class="text-sm text-slate-300 font-medium">Upload Meesho Label PDF(s) to view &amp; rearrange Unmatched SKUs</p>
+                        <p class="text-xs text-slate-500 mt-1">All SKUs not in your Product Groups will appear here so you can order them up/down before downloading.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (uniqueUnmatchedStats.length === 0) {
+                filterBar.classList.add('hidden');
+                container.innerHTML = `
+                    <div class="text-center py-8 px-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                        <p class="text-sm text-emerald-300 font-semibold">100% of uploaded labels matched your Product Groups!</p>
+                        <p class="text-xs text-slate-400 mt-1">There are 0 unmatched SKUs in the current batch.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filterBar.classList.remove('hidden');
+
+            const filteredList = uniqueUnmatchedStats
+                .map((item, actualIndex) => ({ ...item, actualIndex }))
+                .filter(item => !query || item.displaySku.toLowerCase().includes(query));
+
+            const groupOptionsHtml = productGroups.map(g =>
+                `<option value="${g.id}">+ Move to ${escapeHtml(g.name)}</option>`
+            ).join('');
+
+            if (unmatchedViewMode === 'table') {
+                container.innerHTML = `
+                    <div class="overflow-x-auto border border-app-border rounded-xl bg-app-bg">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-app-border bg-app-card text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                                    <th class="py-2.5 px-3 w-20"># Rank</th>
+                                    <th class="py-2.5 px-2">Unmatched SKU ID</th>
+                                    <th class="py-2.5 px-2">Labels &amp; PDF Pages</th>
+                                    <th class="py-2.5 px-2">Courier Breakdown (A→Z)</th>
+                                    <th class="py-2.5 px-2">Assign Group</th>
+                                    <th class="py-2.5 px-3 text-right">Rearrange Order</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-app-border">
+                                ${filteredList.map(item => {
+                                    const idx = item.actualIndex;
+                                    const total = uniqueUnmatchedStats.length;
+                                    const courierStr = Object.entries(item.couriers)
+                                        .sort((a, b) => a[0].localeCompare(b[0]))
+                                        .map(([c, cnt]) => `${c}:${cnt}`)
+                                        .join(' • ');
+                                    const pageRange = item.startPage === item.endPage ? `Pg ${item.startPage}` : `Pg ${item.startPage}-${item.endPage}`;
+
+                                    return `
+                                        <tr draggable="true"
+                                            ondragstart="onUnmatchedDragStart(event, ${idx})"
+                                            ondragover="onUnmatchedDragOver(event)"
+                                            ondrop="onUnmatchedDrop(event, ${idx})"
+                                            ondragend="onUnmatchedDragEnd(event)"
+                                            class="hover:bg-app-elevated/60 transition cursor-move ${item.pinned ? 'bg-amber-500/5' : ''}">
+                                            <td class="py-2 px-3">
+                                                <div class="flex items-center gap-1.5">
+                                                    <button type="button" onclick="togglePinUnmatchedSku('${escapeJsStr(item.key)}')" title="Pin SKU to Top" class="text-sm ${item.pinned ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}">★</button>
+                                                    <input type="number" min="1" max="${total}" value="${idx + 1}"
+                                                        onchange="jumpUnmatchedToRank(${idx}, this.value)"
+                                                        class="w-12 bg-app-card border border-app-border focus:border-app-blue rounded px-1.5 py-1 text-center font-mono font-bold text-xs text-blue-400 outline-none" />
+                                                </div>
+                                            </td>
+                                            <td class="py-2 px-2 font-mono font-semibold text-white">${escapeHtml(item.displaySku)}</td>
+                                            <td class="py-2 px-2 font-mono">
+                                                <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">${item.count} lbl</span>
+                                                <span class="text-slate-400 ml-1">${pageRange}</span>
+                                            </td>
+                                            <td class="py-2 px-2 font-mono text-[11px] text-slate-300">${escapeHtml(courierStr)}</td>
+                                            <td class="py-2 px-2">
+                                                <select onchange="assignUnmatchedSkuToGroup('${escapeJsStr(item.displaySku)}', this.value); this.value='';" class="bg-app-card border border-app-border rounded px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-app-blue">
+                                                    <option value="">+ Assign to Group...</option>
+                                                    ${groupOptionsHtml}
+                                                </select>
+                                            </td>
+                                            <td class="py-2 px-3 text-right">
+                                                <div class="inline-flex items-center gap-1">
+                                                    <button type="button" onclick="moveUnmatchedItem(${idx}, 'top')" ${idx === 0 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded bg-app-card hover:bg-app-blue hover:text-white border border-app-border text-xs disabled:opacity-30 transition" title="Move to Top">⇈</button>
+                                                    <button type="button" onclick="moveUnmatchedItem(${idx}, 'up')" ${idx === 0 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded bg-app-card hover:bg-app-blue hover:text-white border border-app-border text-xs disabled:opacity-30 transition" title="Move Up">↑</button>
+                                                    <button type="button" onclick="moveUnmatchedItem(${idx}, 'down')" ${idx === total - 1 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded bg-app-card hover:bg-app-blue hover:text-white border border-app-border text-xs disabled:opacity-30 transition" title="Move Down">↓</button>
+                                                    <button type="button" onclick="moveUnmatchedItem(${idx}, 'bottom')" ${idx === total - 1 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded bg-app-card hover:bg-app-blue hover:text-white border border-app-border text-xs disabled:opacity-30 transition" title="Move to Bottom">⇊</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                return;
+            }
+
+            // Grid View (3-Col or 2-Col high-density cards so 30+ SKUs are visible on one screen)
+            const gridColsClass = unmatchedViewMode === 'grid2'
+                ? 'grid-cols-1 md:grid-cols-2'
+                : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+
+            container.innerHTML = `
+                <div class="grid ${gridColsClass} gap-2.5">
+                    ${filteredList.map(item => {
+                        const idx = item.actualIndex;
+                        const total = uniqueUnmatchedStats.length;
+                        const courierBadges = Object.entries(item.couriers)
+                            .sort((a, b) => a[0].localeCompare(b[0]))
+                            .map(([c, cnt]) => `<span class="px-1.5 py-0.5 rounded bg-app-card border border-app-border text-[10px] font-mono text-slate-300">${escapeHtml(c)}: <strong class="text-white">${cnt}</strong></span>`)
+                            .join('');
+                        const pageRange = item.startPage === item.endPage ? `Pg ${item.startPage}` : `Pg ${item.startPage}-${item.endPage}`;
+
+                        return `
+                            <div draggable="true"
+                                ondragstart="onUnmatchedDragStart(event, ${idx})"
+                                ondragover="onUnmatchedDragOver(event)"
+                                ondrop="onUnmatchedDrop(event, ${idx})"
+                                ondragend="onUnmatchedDragEnd(event)"
+                                class="bg-app-bg border ${item.pinned ? 'border-amber-500/50 bg-amber-500/5' : 'border-app-border'} hover:border-app-borderHover rounded-xl p-3 flex flex-col justify-between gap-2.5 transition cursor-move">
+
+                                <!-- Top Row: Rank Input, Pin, SKU Name & Count -->
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <input type="number" min="1" max="${total}" value="${idx + 1}"
+                                            onchange="jumpUnmatchedToRank(${idx}, this.value)"
+                                            title="Type rank number and press Enter to jump"
+                                            class="w-11 h-8 bg-app-card border border-app-border focus:border-app-blue rounded-lg text-center font-mono font-bold text-xs text-blue-400 outline-none shrink-0" />
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" onclick="togglePinUnmatchedSku('${escapeJsStr(item.key)}')" title="Pin SKU to Top" class="text-sm leading-none ${item.pinned ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}">★</button>
+                                                <span class="font-mono font-bold text-xs sm:text-sm text-white truncate" title="${escapeHtml(item.displaySku)}">${escapeHtml(item.displaySku)}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2 mt-0.5">
+                                                <span class="text-[11px] font-mono text-amber-400 font-semibold">${item.count} ${item.count === 1 ? 'label' : 'labels'}</span>
+                                                <span class="text-slate-600">•</span>
+                                                <span class="text-[11px] font-mono text-slate-400">${pageRange}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Up / Down / Top / Bottom Touch-Friendly Controls -->
+                                    <div class="flex items-center gap-1 shrink-0 bg-app-card p-1 rounded-lg border border-app-border">
+                                        <button type="button" onclick="moveUnmatchedItem(${idx}, 'top')" ${idx === 0 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded hover:bg-app-blue hover:text-white text-slate-300 text-xs font-bold disabled:opacity-25 transition" title="Move to Top (Rank #1)">⇈</button>
+                                        <button type="button" onclick="moveUnmatchedItem(${idx}, 'up')" ${idx === 0 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded hover:bg-app-blue hover:text-white text-slate-300 text-xs font-bold disabled:opacity-25 transition" title="Move Up">↑</button>
+                                        <button type="button" onclick="moveUnmatchedItem(${idx}, 'down')" ${idx === total - 1 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded hover:bg-app-blue hover:text-white text-slate-300 text-xs font-bold disabled:opacity-25 transition" title="Move Down">↓</button>
+                                        <button type="button" onclick="moveUnmatchedItem(${idx}, 'bottom')" ${idx === total - 1 ? 'disabled' : ''} class="min-w-[32px] min-h-[32px] rounded hover:bg-app-blue hover:text-white text-slate-300 text-xs font-bold disabled:opacity-25 transition" title="Move to Bottom">⇊</button>
+                                    </div>
+                                </div>
+
+                                <!-- Bottom Row: Courier A-Z Breakdown & 1-Click Assign to Group -->
+                                <div class="flex items-center justify-between gap-2 pt-2 border-t border-app-border/70">
+                                    <div class="flex flex-wrap gap-1 min-w-0">
+                                        ${courierBadges}
+                                    </div>
+                                    <select onchange="assignUnmatchedSkuToGroup('${escapeJsStr(item.displaySku)}', this.value); this.value='';"
+                                        class="bg-app-card hover:bg-app-elevated border border-app-border rounded-md px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-app-blue shrink-0 cursor-pointer">
+                                        <option value="">+ Group</option>
+                                        ${groupOptionsHtml}
+                                    </select>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function moveUnmatchedItem(currentIndex, direction) {
+            const activeKeys = uniqueUnmatchedStats.map(u => u.key);
+            if (currentIndex < 0 || currentIndex >= activeKeys.length) return;
+
+            let targetIndex = currentIndex;
+            if (direction === 'top') targetIndex = 0;
+            else if (direction === 'bottom') targetIndex = activeKeys.length - 1;
+            else if (direction === 'up') targetIndex = Math.max(0, currentIndex - 1);
+            else if (direction === 'down') targetIndex = Math.min(activeKeys.length - 1, currentIndex + 1);
+
+            if (targetIndex === currentIndex) return;
+
+            const [movedKey] = activeKeys.splice(currentIndex, 1);
+            activeKeys.splice(targetIndex, 0, movedKey);
+
+            const inactiveKeys = customUnmatchedOrder.filter(k => !activeKeys.includes(k));
+            customUnmatchedOrder = [...activeKeys, ...inactiveKeys];
+
+            rebuildAndSortUnmatchedBucket();
+            renderUnmatchedWorkspace();
+            renderOutputDashboard();
+        }
+
+        function jumpUnmatchedToRank(currentIndex, newRankValue) {
+            const activeKeys = uniqueUnmatchedStats.map(u => u.key);
+            let targetIndex = parseInt(newRankValue, 10) - 1;
+            if (isNaN(targetIndex)) {
+                renderUnmatchedWorkspace();
+                return;
+            }
+            targetIndex = Math.max(0, Math.min(activeKeys.length - 1, targetIndex));
+            if (targetIndex === currentIndex) {
+                renderUnmatchedWorkspace();
+                return;
+            }
+
+            const [movedKey] = activeKeys.splice(currentIndex, 1);
+            activeKeys.splice(targetIndex, 0, movedKey);
+
+            const inactiveKeys = customUnmatchedOrder.filter(k => !activeKeys.includes(k));
+            customUnmatchedOrder = [...activeKeys, ...inactiveKeys];
+
+            rebuildAndSortUnmatchedBucket();
+            renderUnmatchedWorkspace();
+            renderOutputDashboard();
+            showToast(`Moved "${movedKey}" to Rank #${targetIndex + 1}`, 'blue');
+        }
+
+        function togglePinUnmatchedSku(skuKey) {
+            const upper = skuKey.toUpperCase();
+            if (pinnedUnmatchedSkus.includes(upper)) {
+                pinnedUnmatchedSkus = pinnedUnmatchedSkus.filter(k => k !== upper);
+            } else {
+                pinnedUnmatchedSkus.unshift(upper);
+            }
+            localStorage.setItem(STORAGE_KEYS.PINNED_SKUS, JSON.stringify(pinnedUnmatchedSkus));
+            rebuildAndSortUnmatchedBucket();
+            renderUnmatchedWorkspace();
+            renderOutputDashboard();
+        }
+
+        function quickSortUnmatched(mode) {
+            if (uniqueUnmatchedStats.length === 0) return;
+            const sorted = [...uniqueUnmatchedStats];
+            if (mode === 'az') {
+                sorted.sort((a, b) => a.displaySku.localeCompare(b.displaySku, undefined, { numeric: true, sensitivity: 'base' }));
+            } else if (mode === 'count') {
+                sorted.sort((a, b) => b.count - a.count || a.displaySku.localeCompare(b.displaySku));
+            }
+            const activeKeys = sorted.map(s => s.key);
+            const inactiveKeys = customUnmatchedOrder.filter(k => !activeKeys.includes(k));
+            customUnmatchedOrder = [...activeKeys, ...inactiveKeys];
+
+            rebuildAndSortUnmatchedBucket();
+            renderUnmatchedWorkspace();
+            renderOutputDashboard();
+            showToast(mode === 'az' ? 'Sorted Unmatched SKUs A→Z' : 'Sorted Unmatched SKUs by Most Labels', 'blue');
+        }
+
+        function assignUnmatchedSkuToGroup(skuString, groupId) {
+            if (!groupId) return;
+            const group = productGroups.find(g => g.id === groupId);
+            if (!group) return;
+
+            const exists = group.skus.some(s => s.toLowerCase() === skuString.toLowerCase());
+            if (!exists) {
+                group.skus.push(skuString);
+                persistProductGroups();
+            }
+            recalculateBucketsAndRender();
+            showToast(`Assigned SKU "${skuString}" to ${group.name}!`, 'emerald');
+        }
+
+        // Drag and Drop Handlers for Unmatched SKUs
+        function onUnmatchedDragStart(event, index) {
+            draggedUnmatchedIndex = index;
+            event.currentTarget.classList.add('dragging-row');
+            event.dataTransfer.effectAllowed = 'move';
+        }
+        function onUnmatchedDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('drag-over-row');
+        }
+        function onUnmatchedDragEnd(event) {
+            event.currentTarget.classList.remove('dragging-row');
+            document.querySelectorAll('.drag-over-row').forEach(el => el.classList.remove('drag-over-row'));
+        }
+        function onUnmatchedDrop(event, dropIndex) {
+            event.preventDefault();
+            document.querySelectorAll('.drag-over-row').forEach(el => el.classList.remove('drag-over-row'));
+            if (draggedUnmatchedIndex === null || draggedUnmatchedIndex === dropIndex) return;
+
+            const activeKeys = uniqueUnmatchedStats.map(u => u.key);
+            const [movedKey] = activeKeys.splice(draggedUnmatchedIndex, 1);
+            activeKeys.splice(dropIndex, 0, movedKey);
+            draggedUnmatchedIndex = null;
+
+            const inactiveKeys = customUnmatchedOrder.filter(k => !activeKeys.includes(k));
+            customUnmatchedOrder = [...activeKeys, ...inactiveKeys];
+
+            rebuildAndSortUnmatchedBucket();
+            renderUnmatchedWorkspace();
+            renderOutputDashboard();
+        }
+
+        // =========================================================================
+        // 8. OUTPUT DASHBOARD & VECTOR PDF / ZIP GENERATION
+        // =========================================================================
+        function renderOutputDashboard() {
+            const dashboardCard = document.getElementById('output-dashboard-card');
+            const grid = document.getElementById('output-cards-grid');
+
+            if (allExtractedPages.length === 0) {
+                dashboardCard.classList.add('hidden');
+                grid.innerHTML = '';
+                return;
+            }
+
+            dashboardCard.classList.remove('hidden');
+
+            const cardsHtml = [];
+
+            // 1. Cards for each Product Group
+            productGroups.forEach(group => {
+                const pages = groupBuckets[group.id] || [];
+                cardsHtml.push(buildOutputCardHtml({
+                    id: group.id,
+                    title: group.name,
+                    subtitle: 'Sorted by Delivery Partner (A→Z)',
+                    pages,
+                    isUnmatched: false
+                }));
+            });
+
+            // 2. Card for Unmatched / Other SKUs
+            cardsHtml.push(buildOutputCardHtml({
+                id: '__UNMATCHED__',
+                title: 'Unmatched / Other SKUs',
+                subtitle: `Sorted by Custom SKU Order (${uniqueUnmatchedStats.length} SKUs) → Courier (A→Z)`,
+                pages: unmatchedBucket,
+                isUnmatched: true
+            }));
+
+            grid.innerHTML = cardsHtml.join('');
+        }
+
+        function buildOutputCardHtml({ id, title, subtitle, pages, isUnmatched }) {
+            const courierCounts = {};
+            pages.forEach(p => {
+                courierCounts[p.courier] = (courierCounts[p.courier] || 0) + 1;
+            });
+
+            const courierBadges = Object.entries(courierCounts)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([c, count]) => `
+                    <span class="px-2 py-0.5 rounded-md bg-app-card border border-app-border text-[11px] font-mono text-slate-300">
+                        ${escapeHtml(c)}: <strong class="text-white">${count}</strong>
+                    </span>
+                `).join('');
+
+            const cardBorder = isUnmatched
+                ? 'border-amber-500/40 bg-amber-500/5'
+                : 'border-app-border bg-app-bg';
+
+            const btnStyle = pages.length === 0
+                ? 'bg-app-elevated text-slate-500 cursor-not-allowed border border-app-border'
+                : isUnmatched
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
+                    : 'bg-app-blue hover:bg-app-blueHover text-white shadow-sm';
+
+            return `
+                <div class="border ${cardBorder} rounded-xl p-4 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 class="font-display font-bold text-base text-white">${escapeHtml(title)}</h3>
+                                <p class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(subtitle)}</p>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-lg bg-app-card border border-app-border font-mono font-bold text-xs ${pages.length > 0 ? 'text-emerald-400' : 'text-slate-500'} shrink-0">
+                                ${pages.length} ${pages.length === 1 ? 'Label' : 'Labels'}
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            ${courierBadges || '<span class="text-xs text-slate-500 italic">No matching labels in current batch</span>'}
+                        </div>
+                    </div>
+
+                    <button type="button"
+                        ${pages.length === 0 ? 'disabled' : `onclick="downloadBucketPdf('${id}')"`}
+                        class="min-h-[40px] w-full py-2 px-4 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 ${btnStyle}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span>Download ${escapeHtml(title)} PDF</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        async function buildPdfBytesForPages(pages) {
+            const outPdf = await PDFLib.PDFDocument.create();
+            const sourceDocCache = new Map();
+
+            for (const p of pages) {
+                if (!sourceDocCache.has(p.fileId)) {
+                    const fileObj = uploadedFilesQueue.find(f => f.id === p.fileId);
+                    if (!fileObj) continue;
+                    const loaded = await PDFLib.PDFDocument.load(fileObj.pdfBytes);
+                    sourceDocCache.set(p.fileId, loaded);
+                }
+                const srcDoc = sourceDocCache.get(p.fileId);
+                const [copiedPage] = await outPdf.copyPages(srcDoc, [p.pageIndex]);
+                outPdf.addPage(copiedPage);
+            }
+
+            return await outPdf.save();
+        }
+
+        async function downloadBucketPdf(bucketId) {
+            let pages = [];
+            let title = '';
+
+            if (bucketId === '__UNMATCHED__') {
+                pages = unmatchedBucket;
+                title = 'Unmatched_Other_SKUs';
+            } else {
+                const group = productGroups.find(g => g.id === bucketId);
+                if (!group) return;
+                pages = groupBuckets[group.id] || [];
+                title = group.name;
+            }
+
+            if (pages.length === 0) {
+                showToast('No labels in this bucket to download.', 'amber');
+                return;
+            }
+
+            try {
+                showToast(`Generating ${title} PDF (${pages.length} labels)...`, 'blue');
+                const pdfBytes = await buildPdfBytesForPages(pages);
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const safeName = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+                a.href = url;
+                a.download = `${safeName}_Labels_${dateStr}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                showToast(`Downloaded ${safeName}_Labels_${dateStr}.pdf!`, 'emerald');
+            } catch (err) {
+                console.error('PDF generation failed:', err);
+                showToast('Error generating PDF file.', 'rose');
+            }
+        }
+
+        async function downloadAllAsZip() {
+            if (allExtractedPages.length === 0) return;
+
+            try {
+                showToast('Packaging all sorted PDFs into a ZIP archive...', 'blue');
+                const zip = new JSZip();
+                const dateStr = new Date().toISOString().slice(0, 10);
+                let filesAdded = 0;
+
+                for (const group of productGroups) {
+                    const pages = groupBuckets[group.id] || [];
+                    if (pages.length > 0) {
+                        const pdfBytes = await buildPdfBytesForPages(pages);
+                        const safeName = group.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+                        zip.file(`${safeName}_Labels_${dateStr}.pdf`, pdfBytes);
+                        filesAdded++;
+                    }
+                }
+
+                if (unmatchedBucket.length > 0) {
+                    const pdfBytes = await buildPdfBytesForPages(unmatchedBucket);
+                    zip.file(`Unmatched_Other_SKUs_Labels_${dateStr}.pdf`, pdfBytes);
+                    filesAdded++;
+                }
+
+                if (filesAdded === 0) {
+                    showToast('No pages available to export.', 'amber');
+                    return;
+                }
+
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Meesho_Sorted_Labels_${dateStr}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                showToast(`Downloaded ZIP with ${filesAdded} sorted PDF(s)!`, 'emerald');
+            } catch (err) {
+                console.error('ZIP generation error:', err);
+                showToast('Failed to create ZIP archive.', 'rose');
+            }
+        }
+
+        // =========================================================================
+        // 9. SYNC / BACKUP SKUs MODAL (PLAIN JSON EXPORT + UNIVERSAL IMPORT)
+        // =========================================================================
+        function getPlainJsonConfigString() {
+            // Output plain, clean JSON array/object that is 100% readable and backward compatible
+            const payload = {
+                version: 2,
+                groups: productGroups,
+                unmatchedOrder: customUnmatchedOrder,
+                pinnedUnmatched: pinnedUnmatchedSkus
+            };
+            return JSON.stringify(payload, null, 2);
+        }
+
+        function openSyncModal() {
+            const modal = document.getElementById('sync-modal');
+            const textarea = document.getElementById('sync-config-textarea');
+            textarea.value = getPlainJsonConfigString();
+            modal.classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        function copySkuConfigToClipboard() {
+            const configStr = getPlainJsonConfigString();
+            const textarea = document.getElementById('sync-config-textarea');
+            textarea.value = configStr;
+            textarea.select();
+
+            try {
+                document.execCommand('copy');
+                showToast('SKU Config JSON copied to clipboard!', 'emerald');
+            } catch (err) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(configStr).then(() => {
+                        showToast('SKU Config JSON copied to clipboard!', 'emerald');
+                    });
+                }
+            }
+        }
+
+        function shareSkuConfigMobile() {
+            const configStr = getPlainJsonConfigString();
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Meesho SKU Configuration Backup',
+                    text: configStr
+                }).catch(() => {});
+            } else {
+                copySkuConfigToClipboard();
+                showToast('Copied to clipboard! You can now paste it in WhatsApp or Notes.', 'blue');
+            }
+        }
+
+        function importFromModalTextarea() {
+            const textarea = document.getElementById('sync-config-textarea');
+            const rawText = textarea ? textarea.value : '';
+            applyImportedConfigString(rawText);
+        }
+
+        function downloadSkuConfigFile() {
+            const configStr = getPlainJsonConfigString();
+            const blob = new Blob([configStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `meesho_sku_config_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            showToast('Downloaded SKU Backup (.json) file!', 'emerald');
+        }
+
+        function uploadSkuConfigFile(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                applyImportedConfigString(String(e.target.result || ''));
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function applyImportedConfigString(rawStr) {
+            try {
+                const parsed = parseUniversalSkuConfig(rawStr);
+                productGroups = parsed.groups;
+                if (parsed.unmatchedOrder) customUnmatchedOrder = parsed.unmatchedOrder;
+                if (parsed.pinnedUnmatched) pinnedUnmatchedSkus = parsed.pinnedUnmatched;
+
+                bulkEditOpenMap = {};
+                persistProductGroups();
+                recalculateBucketsAndRender();
+                closeSyncModal();
+
+                const totalSkus = productGroups.reduce((sum, g) => sum + g.skus.length, 0);
+                showToast(`Loaded ${productGroups.length} Product Groups (${totalSkus} total SKUs)!`, 'emerald');
+            } catch (err) {
+                showToast(err.message || 'Invalid SKU Configuration format.', 'rose');
+            }
+        }
+
+        // =========================================================================
+        // 10. MOBILE NAVIGATION, HELPERS & OFFLINE SERVICE WORKER
+        // =========================================================================
+        function switchMobileTab(tab) {
+            const skusAside = document.getElementById('section-skus');
+            const mainWorkspace = document.getElementById('section-main-workspace');
+            const subUpload = document.getElementById('sub-section-upload');
+            const subUnmatched = document.getElementById('sub-section-unmatched');
+
+            const tabUploadBtn = document.getElementById('mob-tab-upload');
+            const tabUnmatchedBtn = document.getElementById('mob-tab-unmatched');
+            const tabSkusBtn = document.getElementById('mob-tab-skus');
+
+            const activeClass = 'min-h-[44px] py-2.5 px-2 text-center border-b-2 border-app-blue text-white flex items-center justify-center gap-1.5 transition';
+            const inactiveClass = 'min-h-[44px] py-2.5 px-2 text-center border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 transition';
+
+            if (window.innerWidth >= 1024) {
+                skusAside.classList.remove('hidden');
+                mainWorkspace.classList.remove('hidden');
+                subUpload.classList.remove('hidden');
+                subUnmatched.classList.remove('hidden');
+                return;
+            }
+
+            if (tab === 'skus') {
+                skusAside.classList.remove('hidden');
+                mainWorkspace.classList.add('hidden');
+                tabSkusBtn.className = activeClass;
+                tabUploadBtn.className = inactiveClass;
+                tabUnmatchedBtn.className = inactiveClass;
+            } else if (tab === 'unmatched') {
+                skusAside.classList.add('hidden');
+                mainWorkspace.classList.remove('hidden');
+                subUpload.classList.add('hidden');
+                subUnmatched.classList.remove('hidden');
+                tabUnmatchedBtn.className = activeClass;
+                tabUploadBtn.className = inactiveClass;
+                tabSkusBtn.className = inactiveClass;
+            } else {
+                skusAside.classList.add('hidden');
+                mainWorkspace.classList.remove('hidden');
+                subUpload.classList.remove('hidden');
+                subUnmatched.classList.remove('hidden');
+                tabUploadBtn.className = activeClass;
+                tabUnmatchedBtn.className = inactiveClass;
+                tabSkusBtn.className = inactiveClass;
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 1024) {
+                document.getElementById('section-skus').classList.remove('hidden');
+                document.getElementById('section-main-workspace').classList.remove('hidden');
+                document.getElementById('sub-section-upload').classList.remove('hidden');
+                document.getElementById('sub-section-unmatched').classList.remove('hidden');
+            }
+        });
+
+        function updateHeaderBadges() {
+            document.getElementById('stat-files-count').textContent = uploadedFilesQueue.length;
+            document.getElementById('stat-labels-count').textContent = allExtractedPages.length;
+            document.getElementById('mob-badge-pdfs').textContent = allExtractedPages.length;
+            document.getElementById('mob-badge-groups').textContent = productGroups.length;
+        }
+
+        function showToast(message, color = 'blue') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const palette = {
+                emerald: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-200',
+                amber: 'bg-amber-950/95 border-amber-500/50 text-amber-200',
+                rose: 'bg-rose-950/95 border-rose-500/50 text-rose-200',
+                blue: 'bg-app-elevated/95 border-blue-500/40 text-slate-100'
+            };
+            toast.className = `toast-animate pointer-events-auto px-4 py-3 rounded-xl border shadow-xl backdrop-blur text-xs sm:text-sm font-medium flex items-center justify-between gap-3 ${palette[color] || palette.blue}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.25s ease';
+                setTimeout(() => toast.remove(), 260);
+            }, 3200);
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeJsStr(str) {
+            return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        // Inline Service Worker Registration for Offline Caching
+        function registerOfflineServiceWorker() {
+            if (!('serviceWorker' in navigator)) return;
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') return;
+
+            const swScript = `
+                const CACHE_NAME = 'meesho-label-sorter-pro-v3';
+                const ASSETS = [
+                    'https://cdn.tailwindcss.com',
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+                    'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+                ];
+                self.addEventListener('install', event => {
+                    self.skipWaiting();
+                    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS).catch(() => {})));
+                });
+                self.addEventListener('activate', event => {
+                    event.waitUntil(self.clients.claim());
+                });
+                self.addEventListener('fetch', event => {
+                    event.respondWith(
+                        caches.match(event.request).then(cached => cached || fetch(event.request))
+                    );
+                });
+            `;
+            try {
+                const blob = new Blob([swScript], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl).then(() => {
+                    const badge = document.getElementById('offline-ready-badge');
+                    if (badge) badge.classList.remove('hidden');
+                }).catch(() => {});
+            } catch (_) {}
+        }
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialState();
+            setupDropzoneListeners();
+            recalculateBucketsAndRender();
+            registerOfflineServiceWorker();
+        });
+    </script>
+</body>
+</html>
